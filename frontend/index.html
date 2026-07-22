@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NASA APOD Gallery</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; background: #111; color: white; }
+    .gallery { display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; }
+    .card { background: #222; border-radius: 8px; overflow: hidden; width: 300px; cursor: pointer; }
+    .card img { width: 100%; height: 200px; object-fit: cover; background: #333; }
+    .card .info { padding: 10px; }
+    .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); justify-content: center; align-items: center; flex-direction: column; z-index: 1000; }
+    .modal img, .modal iframe, .modal video { max-width: 90%; max-height: 70vh; }
+    .modal p { margin: 10px; max-width: 80%; }
+    .close { position: absolute; top: 20px; right: 40px; font-size: 30px; cursor: pointer; color: white; z-index: 1001; }
+    #load-more-container { text-align: center; margin: 30px 0; }
+    #load-more-btn { padding: 12px 24px; font-size: 16px; background: #444; color: white; border: none; border-radius: 4px; cursor: pointer; }
+    #load-more-btn:hover { background: #666; }
+  </style>
+</head>
+<body>
+  <h1>NASA Astronomy Picture of the Day</h1>
+  <div class="gallery" id="gallery"></div>
+  <div id="load-more-container">
+    <button id="load-more-btn">Cargar más</button>
+  </div>
+
+  <div class="modal" id="modal">
+    <span class="close" id="close-modal">&times;</span>
+    <div id="modal-media"></div>
+    <h2 id="modal-title"></h2>
+    <p id="modal-explanation"></p>
+    <p><strong>Date:</strong> <span id="modal-date"></span></p>
+    <p><strong>Copyright:</strong> <span id="modal-copyright"></span></p>
+    <a id="modal-hd" href="#" target="_blank">View HD</a>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getFirestore, collection, query, orderBy, limit, getDocs, startAfter } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+      projectId: "primer-proyecto-103",
+    };
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    const PAGE_SIZE = 30;
+    let lastVisibleDoc = null;  // cursor para la siguiente página
+    let noMoreData = false;
+
+    window.showModal = showModal;
+    window.closeModal = closeModal;
+
+    // Elementos del DOM
+    const gallery = document.getElementById("gallery");
+    const loadMoreBtn = document.getElementById("load-more-btn");
+
+    // --- Funciones de miniatura y video (sin cambios) ---
+    function getThumbnailUrl(data) {
+      if (data.media_type === "image") {
+        return data.url;
+      }
+      if (data.thumbnail_url && data.thumbnail_url.trim() !== "") {
+        return data.thumbnail_url;
+      }
+      const youtubeId = getYouTubeVideoId(data.url);
+      if (youtubeId) {
+        return `https://img.youtube.com/vi/${youtubeId}/0.jpg`;
+      }
+      return "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='200' fill='%23333'%3E%3Crect width='300' height='200'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='20' fill='%23fff'%3EVideo%3C/text%3E%3C/svg%3E";
+    }
+
+    function getYouTubeVideoId(url) {
+      const patterns = [
+        /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/v\/)([^&?/#]+)/,
+      ];
+      for (const pattern of patterns) {
+        const match = url.match(pattern);
+        if (match) return match[1];
+      }
+      return null;
+    }
+
+    // --- Crear tarjeta a partir de datos ---
+    function createCard(data) {
+      const card = document.createElement("div");
+      card.className = "card";
+      const thumbnailUrl = getThumbnailUrl(data);
+      card.innerHTML = `
+        <img src="${thumbnailUrl}" alt="${data.title}" loading="lazy"
+             onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22300%22 height=%22200%22 fill=%22%23333%22%3E%3Crect width=%22300%22 height=%22200%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 font-size=%2220%22 fill=%22%23fff%22%3ESin imagen%3C/text%3E%3C/svg%3E'">
+        <div class="info">
+          <h3>${data.title}</h3>
+          <small>${data.date}</small>
+        </div>
+      `;
+      card.addEventListener("click", () => showModal(data));
+      return card;
+    }
+
+    // --- Cargar página (primer lote o siguiente) ---
+    async function loadPage() {
+      let q;
+      if (lastVisibleDoc) {
+        q = query(
+          collection(db, "apod"),
+          orderBy("date", "desc"),
+          startAfter(lastVisibleDoc),
+          limit(PAGE_SIZE)
+        );
+      } else {
+        q = query(
+          collection(db, "apod"),
+          orderBy("date", "desc"),
+          limit(PAGE_SIZE)
+        );
+      }
+
+      const snapshot = await getDocs(q);
+      if (snapshot.empty) {
+        noMoreData = true;
+        loadMoreBtn.style.display = "none";
+        return;
+      }
+
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        gallery.appendChild(createCard(data));
+      });
+
+      // Actualizar cursor con el último documento visible
+      lastVisibleDoc = snapshot.docs[snapshot.docs.length - 1];
+
+      // Si la cantidad de documentos es menor que PAGE_SIZE, no hay más datos
+      if (snapshot.docs.length < PAGE_SIZE) {
+        noMoreData = true;
+        loadMoreBtn.style.display = "none";
+      }
+    }
+
+    // --- Modal (sin cambios) ---
+    function showModal(data) {
+      document.getElementById("modal-title").textContent = data.title;
+      document.getElementById("modal-explanation").textContent = data.explanation;
+      document.getElementById("modal-date").textContent = data.date;
+      document.getElementById("modal-copyright").textContent = data.copyright || "Public Domain";
+      
+      const hdlink = document.getElementById("modal-hd");
+      if (data.hdurl) {
+        hdlink.href = data.hdurl;
+        hdlink.style.display = "inline";
+      } else {
+        hdlink.style.display = "none";
+      }
+
+      const mediaContainer = document.getElementById("modal-media");
+      mediaContainer.innerHTML = "";
+
+      if (data.media_type === "video") {
+        const videoId = getYouTubeVideoId(data.url);
+        if (videoId) {
+          const iframe = document.createElement("iframe");
+          iframe.width = 560;
+          iframe.height = 315;
+          iframe.src = `https://www.youtube.com/embed/${videoId}`;
+          iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
+          iframe.allowFullscreen = true;
+          mediaContainer.appendChild(iframe);
+        } else {
+          const video = document.createElement("video");
+          video.src = data.url;
+          video.controls = true;
+          video.style.maxWidth = "90%";
+          video.style.maxHeight = "70vh";
+          mediaContainer.appendChild(video);
+        }
+      } else {
+        const img = document.createElement("img");
+        img.src = data.hdurl || data.url;
+        img.alt = data.title;
+        mediaContainer.appendChild(img);
+      }
+
+      document.getElementById("modal").style.display = "flex";
+    }
+
+    function closeModal() {
+      document.getElementById("modal").style.display = "none";
+      document.getElementById("modal-media").innerHTML = "";
+    }
+
+    // --- Eventos ---
+    document.getElementById("close-modal").addEventListener("click", closeModal);
+    document.getElementById("modal").addEventListener("click", function(e) {
+      if (e.target === this) {
+        closeModal();
+      }
+    });
+
+    loadMoreBtn.addEventListener("click", async () => {
+      loadMoreBtn.disabled = true;
+      loadMoreBtn.textContent = "Cargando...";
+      await loadPage();
+      if (!noMoreData) {
+        loadMoreBtn.disabled = false;
+        loadMoreBtn.textContent = "Cargar más";
+      }
+    });
+
+    // --- Carga inicial ---
+    loadPage().then(() => {
+      if (noMoreData) {
+        loadMoreBtn.style.display = "none";
+      }
+    });
+  </script>
+</body>
+</html>

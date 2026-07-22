@@ -1,0 +1,15 @@
+{
+  "projects": {
+    "default": "primer-proyecto-103-db540"
+  },
+  "targets": {
+    "primer-proyecto-103-db540": {
+      "hosting": {
+        "apod-pipeline": [
+          "apod-pipeline"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}
