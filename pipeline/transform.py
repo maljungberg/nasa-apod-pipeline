@@ -1,6 +1,6 @@
 """
-Módulo de transformación para datos NASA APOD.
-Normaliza registros crudos de la API al esquema de Firestore.
+Transformation module for NASA APOD data.
+Maps raw API records to the Firestore schema.
 """
 
 import re
@@ -13,19 +13,19 @@ logger = logging.getLogger(__name__)
 
 def clean_copyright(raw: Optional[str]) -> str:
     """
-    Limpia el campo copyright.
+    Cleans the copyright field.
 
-    Reglas:
-    - Si es None o vacío, devuelve "".
-    - Si contiene '\n\nText:', corta antes de esa cadena (prioriza el nombre del artista).
-    - Elimina saltos de línea y unifica espacios.
-    - Si después de limpiar queda "Public Domain", se conserva.
+    Rules:
+    - If it is None or empty, returns "".
+    - If it contains '\n\nText:', cuts before that string (prioritizes the artist's name).
+    - Removes line breaks and unifies spaces.
+    - If after cleaning it remains "Public Domain", it is preserved.
     """
     if not raw:
         return ""
 
     text_split = raw.split("\n\nText:")
-    # Si no hay nada antes de "Text:", tomamos lo que sigue
+    # If there is nothing before "Text:", we take what follows
     if len(text_split) > 1 and not text_split[0].strip():
         cleaned = text_split[1]
     else:
@@ -37,30 +37,30 @@ def clean_copyright(raw: Optional[str]) -> str:
 
 def clean_explanation(raw: str) -> str:
     """
-    Limpia el campo explanation.
+    Cleans the explanation field.
 
-    Reglas:
-    - Decodifica entidades HTML (&amp;, &lt;, etc.).
-    - Reemplaza tags <br> y <p> por saltos de línea.
-    - Normaliza espacios múltiples y saltos de línea redundantes.
+    Rules:
+    - Decodes HTML entities (&amp;, &lt;, etc.).
+    - Replaces <br> and <p> tags with line breaks.
+    - Normalizes multiple spaces and redundant line breaks.
     """
-    # Decodificar entidades HTML
+    # Decode HTML entities
     text = html.unescape(raw)
 
-    # Reemplazar <br> y <br/> por \n
+    # Replace <br> and <br/> with \n
     text = re.sub(r"<br\s*/?>", "\n", text, flags=re.IGNORECASE)
 
-    # Reemplazar <p> y </p> por \n
+    # Replace <p> and </p> with \n
     text = re.sub(r"</?p[^>]*>", "\n", text, flags=re.IGNORECASE)
 
-    # Eliminar cualquier otro tag HTML residual
+    # Remove any other residual HTML tags
     text = re.sub(r"<[^>]+>", "", text)
 
-    # Normalizar espacios: no colapsar saltos de línea entre párrafos
-    # Primero unificamos espacios dentro de cada línea
+    # Normalize spaces: don't collapse line breaks between paragraphs
+    # First we unify spaces within each line
     lines = text.split("\n")
     lines = [re.sub(r"[ \t]+", " ", line).strip() for line in lines]
-    # Eliminar líneas vacías múltiples (dejar máximo una línea vacía entre párrafos)
+    # Eliminate multiple empty lines (leave at most one empty line between paragraphs)
     clean_lines = []
     prev_empty = False
     for line in lines:
@@ -77,31 +77,31 @@ def clean_explanation(raw: str) -> str:
 
 def clean_record(record: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Toma un diccionario crudo de la API y devuelve un diccionario limpio
-    listo para insertar en Firestore.
+    Takes a raw API dictionary and returns a cleaned-up dictionary
+    ready to be inserted into Firestore.
 
     Args:
-        record: Diccionario con los campos de la API.
+        record: Dictionary containing the API fields.
 
     Returns:
-        Diccionario con los campos normalizados: date, title, explanation,
+        Dictionary with the normalized fields: date, title, explanation,
         url, hdurl, media_type, copyright, thumbnail_url, load_timestamp.
     """
-    # Campos obligatorios
+    # Required fields
     date = record.get("date", "")
     title = record.get("title", "").strip()
     media_type = record.get("media_type", "image")
 
-    # Campos opcionales con limpieza
+    # Optional fields with cleaning
     explanation = clean_explanation(record.get("explanation", ""))
     url = record.get("url", "")
-    hdurl = record.get("hdurl", "") or ""  # si es None, ponemos ""
-    copyright_raw = record.get("copyright")  # puede no existir
+    hdurl = record.get("hdurl", "") or ""  # if it's None, we put an empty string
+    copyright_raw = record.get("copyright")  # might not exist
     copyright_clean = clean_copyright(copyright_raw)
 
-    # Thumbnail: solo presente si thumbs=True y el día es video
+    # Required fields: Thumbnail—only required if `thumbs=True` and the day is a video
     thumbnail_url = record.get("thumbnail_url", "") or ""
-    # Timestamp de carga en UTC
+    # Upload timestamp in UTC
     load_timestamp = datetime.now(timezone.utc).isoformat()
 
     cleaned = {
@@ -121,14 +121,14 @@ def clean_record(record: Dict[str, Any]) -> Dict[str, Any]:
 
 def transform_all(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
-    Aplica clean_record a una lista de registros crudos.
-    Filtra registros que no tengan 'date' (caso extremo).
+    Applies clean_record to a list of raw records.
+    Filters out records that don't have a 'date' (extreme case).
     """
     cleaned = []
     for rec in records:
         if not rec.get("date"):
-            logger.warning("Registro sin fecha encontrado, se omite: %s", rec)
+            logger.warning("Record without date found, skipping: %s", rec)
             continue
         cleaned.append(clean_record(rec))
-    logger.info("Transformados %d registros exitosamente.", len(cleaned))
+    logger.info("Transformed %d records successfully.", len(cleaned))
     return cleaned

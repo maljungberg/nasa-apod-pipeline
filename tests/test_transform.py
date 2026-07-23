@@ -1,5 +1,5 @@
 """
-Tests unitarios para pipeline.transform
+Unit tests for pipeline.transform
 """
 
 import html
@@ -8,7 +8,7 @@ from pipeline.transform import clean_copyright, clean_explanation, clean_record,
 
 
 # -----------------------------------------------
-# Tests para clean_copyright
+# Tests for clean_copyright
 # -----------------------------------------------
 
 class TestCleanCopyright:
@@ -27,9 +27,9 @@ class TestCleanCopyright:
     def test_with_newlines(self):
         raw = "Tunç Tezel (TWAN)\n\nText:\nKeighley Rockcliffe  \n(NASA\nGSFC, \nUMBC CSST, \nCRESST II)"
         result = clean_copyright(raw)
-        # Debe cortar en \n\nText: y limpiar espacios
+        # Must cut at \n\nText: and remove any spaces
         assert result == "Tunç Tezel (TWAN)"
-        # No debe contener "Text:" ni "Keighley"
+        # It must not contain "Text:" or "Keighley"
         assert "Text:" not in result
         assert "Keighley" not in result
 
@@ -45,7 +45,7 @@ class TestCleanCopyright:
 
 
 # -----------------------------------------------
-# Tests para clean_explanation
+# Tests for clean_explanation
 # -----------------------------------------------
 
 class TestCleanExplanation:
@@ -54,9 +54,9 @@ class TestCleanExplanation:
         result = clean_explanation(raw)
         assert "&" in result
         assert "&amp;" not in result
-        # <test> se elimina porque la función borra tags HTML
+        # <test> is removed because the function deletes HTML tags
         assert "The & symbol & more" in result
-        assert "<test>" not in result   # coherencia con el propósito de limpieza
+        assert "<test>" not in result   # consistency with the aim of cleaning
 
     def test_br_tags_replaced(self):
         raw = "Line 1<br>Line 2<br/>Line 3"
@@ -82,7 +82,7 @@ class TestCleanExplanation:
     def test_multiple_linebreaks_collapsed(self):
         raw = "Paragraph one\n\n\n\nParagraph two"
         result = clean_explanation(raw)
-        # Debe haber solo un salto de línea entre párrafos (es decir, una línea vacía)
+        # Must have only one line break between paragraphs (i.e., an empty line)
         assert "Paragraph one\n\nParagraph two" == result
 
     def test_tabs_and_multiple_spaces(self):
@@ -92,7 +92,7 @@ class TestCleanExplanation:
 
 
 # -----------------------------------------------
-# Tests para clean_record
+# Tests for clean_record
 # -----------------------------------------------
 
 class TestCleanRecord:
@@ -116,9 +116,9 @@ class TestCleanRecord:
         assert cleaned["hdurl"] == "http://example.com/image_hd.jpg"
         assert cleaned["media_type"] == "image"
         assert cleaned["copyright"] == "John Doe"
-        assert cleaned["thumbnail_url"] == ""  # no thumbnail para imágenes
+        assert cleaned["thumbnail_url"] == ""  # no thumbnail for images
         assert "load_timestamp" in cleaned
-        assert "service_version" not in cleaned  # no se incluye
+        assert "service_version" not in cleaned  # not included in cleaned record
 
     def test_video_record_with_thumbnail(self):
         raw = {
@@ -132,7 +132,7 @@ class TestCleanRecord:
         cleaned = clean_record(raw)
         assert cleaned["media_type"] == "video"
         assert cleaned["thumbnail_url"] == "http://img.youtube.com/vi/123/0.jpg"
-        assert cleaned["hdurl"] == ""  # sin hdurl
+        assert cleaned["hdurl"] == ""  # no hdurl
 
     def test_missing_copyright(self):
         raw = {
@@ -156,7 +156,7 @@ class TestCleanRecord:
 
 
 # -----------------------------------------------
-# Tests para transform_all
+# Tests for transform_all
 # -----------------------------------------------
 
 class TestTransformAll:

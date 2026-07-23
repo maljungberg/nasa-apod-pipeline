@@ -1,6 +1,6 @@
 """
-Módulo de carga para Firestore.
-Maneja inserción de registros APOD y mantenimiento del documento de control.
+Loading module for Firestore.
+Handles the insertion of APOD records and the maintenance of the control document.
 """
 import os
 import logging
@@ -11,7 +11,7 @@ from google.cloud.firestore_v1 import Client
 
 logger = logging.getLogger(__name__)
 
-# Colecciones en Firestore
+# Collections in Firestore
 COLLECTION_APOD = "apod"
 COLLECTION_PIPELINE_STATE = "pipeline_state"
 DOC_CONTROL = "apod_control"
@@ -19,9 +19,9 @@ DOC_CONTROL = "apod_control"
 
 def _get_client() -> Client:
     """
-    Retorna un cliente de Firestore.
-    En Cloud Run, usa la cuenta de servicio por defecto.
-    En local, necesita GOOGLE_APPLICATION_CREDENTIALS o gcloud auth.
+    Returns a Firestore client.
+    In Cloud Run, it uses the default service account.
+    In local development, it needs GOOGLE_APPLICATION_CREDENTIALS or gcloud auth.
     """
     database_id = os.environ.get("FIRESTORE_DATABASE", "apod")
     return firestore.Client()
@@ -29,17 +29,17 @@ def _get_client() -> Client:
 
 def load_records(records: List[Dict[str, Any]]) -> int:
     """
-    Inserta una lista de registros limpios en la colección 'apod'.
-    Usa la fecha como ID del documento (upsert natural).
+    Inserts a list of cleaned records into the 'apod' collection.
+    Uses the date as the document ID (natural upsert).
 
     Args:
-        records: Lista de diccionarios con los campos normalizados.
+        records: List of dictionaries with the normalized fields.
 
     Returns:
-        Número de registros insertados/actualizados.
+        Number of records inserted/updated.
     """
     if not records:
-        logger.info("No hay registros para cargar.")
+        logger.info("No records to load.")
         return 0
 
     db = _get_client()
@@ -49,21 +49,21 @@ def load_records(records: List[Dict[str, Any]]) -> int:
     for rec in records:
         doc_id = rec.get("date")
         if not doc_id:
-            logger.warning("Registro sin 'date', se omite: %s", rec)
+            logger.warning("Record without 'date', skipping: %s", rec)
             continue
 
         doc_ref = db.collection(COLLECTION_APOD).document(doc_id)
-        # set() con merge=True hace upsert: crea si no existe, actualiza si existe
+        # set() with merge=True performs an upsert: it creates the record if it doesn't exist, and updates it if it does
         batch.set(doc_ref, rec, merge=True)
         count += 1
 
-        # Firestore acepta hasta 500 operaciones por batch
+        # Firestore accepts up to 500 operations per batch
         if count % 500 == 0:
             batch.commit()
             logger.info("Commit de batch intermedio (%d documentos).", count)
             batch = db.batch()
 
-    # Commit final para los restantes
+    # Final commit for the rest
     if count % 500 != 0:
         batch.commit()
 
@@ -73,31 +73,31 @@ def load_records(records: List[Dict[str, Any]]) -> int:
 
 def get_last_loaded_date() -> Optional[str]:
     """
-    Lee la fecha del último APOD cargado desde el documento de control.
+    Reads the date of the last loaded APOD from the control document.
 
     Returns:
-        String en formato YYYY-MM-DD o None si no existe el documento
-        o el campo está vacío.
+        String in YYYY-MM-DD format or None if the document does not exist
+        or the field is empty.
     """
     db = _get_client()
     doc_ref = db.collection(COLLECTION_PIPELINE_STATE).document(DOC_CONTROL)
     doc = doc_ref.get()
 
     if not doc.exists:
-        logger.info("Documento de control no encontrado. Se asume primera ejecución (backfill).")
+        logger.info("Control document not found. Assuming first execution (backfill).")
         return None
 
     last_date = doc.to_dict().get("last_loaded_date")
-    logger.info("Última fecha cargada según control: %s", last_date)
+    logger.info("Last loaded date according to control: %s", last_date)
     return last_date if last_date else None
 
 
 def update_control_date(last_date: str) -> None:
     """
-    Actualiza el documento de control con la nueva última fecha cargada.
+    Updates the control document with the new last loaded date.
 
     Args:
-        last_date: Fecha en formato YYYY-MM-DD.
+        last_date: Date in YYYY-MM-DD format.
     """
     db = _get_client()
     doc_ref = db.collection(COLLECTION_PIPELINE_STATE).document(DOC_CONTROL)
@@ -108,4 +108,4 @@ def update_control_date(last_date: str) -> None:
         "updated_at": datetime.now(timezone.utc).isoformat()
     }
     doc_ref.set(data, merge=True)
-    logger.info("Documento de control actualizado: last_loaded_date=%s", last_date)
+    logger.info("Control document updated: last_loaded_date=%s", last_date)

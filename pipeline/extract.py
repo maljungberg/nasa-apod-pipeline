@@ -1,6 +1,6 @@
 """
-Módulo de extracción para la API NASA APOD.
-Implementa reintentos con backoff exponencial y manejo de errores.
+Extraction module for the NASA APOD API.
+Implements retries with exponential backoff and error handling.
 """
 
 import os
@@ -14,7 +14,7 @@ from urllib3.util.retry import Retry
 
 logger = logging.getLogger(__name__)
 
-# Configuración por defecto
+# Default configuration
 BASE_URL = "https://api.nasa.gov/planetary/apod"
 MAX_RETRIES = 5
 BACKOFF_FACTOR = 2  # segundos: 2, 4, 8, 16, 32
@@ -23,22 +23,22 @@ TIMEOUT = 15  # segundos para conectar y leer
 
 def _get_api_key() -> str:
     """
-    Recupera la API key de la variable de entorno.
-    En local se carga desde .env; en Cloud Run se inyecta directamente.
+    Retrieve the API key from the environment variable.
+    On a local machine, it is loaded from .env; on Cloud Run, it is injected directly.
     """
     key = os.environ.get("NASA_API_KEY")
     if not key:
         raise RuntimeError(
-            "NASA_API_KEY no encontrada. Asegurate de definir la variable de entorno "
-            "o cargarla desde un archivo .env."
+            "NASA_API_KEY not found. Make sure to define the environment variable "
+            "or load it from a .env file."
         )
     return key
 
 
 def _build_session() -> requests.Session:
     """
-    Crea una sesión de requests con reintentos a nivel de conexión (urllib3).
-    Esto cubre errores transitorios de red antes de llegar al backoff de aplicación.
+    Create a requests session with retries at the connection level (urllib3).
+    This covers transient network errors before reaching the application backoff.
     """
     session = requests.Session()
     retries = Retry(
@@ -59,19 +59,19 @@ def fetch_apod_range(
     thumbs: bool = True
 ) -> List[Dict]:
     """
-    Obtiene los APOD entre start_date y end_date (inclusive).
+    Fetches APOD images between start_date and end_date (inclusive).
 
     Args:
-        start_date: Fecha inicio en formato 'YYYY-MM-DD'.
-        end_date: Fecha fin en formato 'YYYY-MM-DD'.
-        thumbs: Solicitar thumbnails para videos (siempre True en nuestro pipeline).
+        start_date: Start date in 'YYYY-MM-DD' format.
+        end_date: End date in 'YYYY-MM-DD' format.
+        thumbs: Request thumbnails for videos (always True in our pipeline).
 
     Returns:
-        Lista de diccionarios crudos tal como los devuelve la API.
+        List of raw dictionaries as returned by the API.
 
     Raises:
-        RuntimeError: Si se agotan los reintentos sin éxito.
-        ValueError: Si la API responde con error de parámetros (400).
+        RuntimeError: If all retries are exhausted without success.
+        ValueError: If the API responds with a parameter error (400).
     """
     api_key = _get_api_key()
     params = {
@@ -88,32 +88,32 @@ def fetch_apod_range(
     for attempt in range(1, MAX_RETRIES + 1):
         try:
             logger.info(
-                "Llamada a NASA APOD: %s a %s (intento %d/%d)",
+                "Calling NASA APOD: %s to %s (attempt %d/%d)",
                 start_date, end_date, attempt, MAX_RETRIES
             )
             response = session.get(BASE_URL, params=params, timeout=TIMEOUT)
 
-            # Errores de cliente que no se reintentan
+            # Client errors that are not retried
             if response.status_code == 400:
-                raise ValueError(f"Parámetros inválidos: {response.text}")
+                raise ValueError(f"Invalid parameters: {response.text}")
             if response.status_code == 403:
-                raise RuntimeError(f"API key inválida o sin permisos: {response.text}")
+                raise RuntimeError(f"Invalid API key or API key without permissions: {response.text}")
 
-            # Errores de servidor que se reintentan
+            # Server errors that are retried
             if response.status_code >= 500:
                 raise requests.exceptions.HTTPError(
-                    f"Error de servidor {response.status_code}: {response.text}",
+                    f"Server error {response.status_code}: {response.text}",
                     response=response
                 )
 
             response.raise_for_status()
 
             data = response.json()
-            # Si el rango devuelve un solo día, la API da un dict, no una lista
+            # If the range returns a single day, the API returns a dict, not a list
             if isinstance(data, dict):
                 data = [data]
 
-            logger.info("Obtenidos %d registros.", len(data))
+            logger.info("Fetched %d records.", len(data))
             return data
 
         except (requests.exceptions.ConnectionError,
@@ -123,19 +123,19 @@ def fetch_apod_range(
             if attempt < MAX_RETRIES:
                 wait = BACKOFF_FACTOR ** attempt
                 logger.warning(
-                    "Error en intento %d: %s. Reintentando en %d segundos...",
+                    "Error in attempt %d: %s. Retrying in %d seconds...",
                     attempt, e, wait
                 )
                 time.sleep(wait)
             else:
-                logger.error("Agotados los %d reintentos.", MAX_RETRIES)
+                logger.error("We have used up all %d retry attempts.", MAX_RETRIES)
 
         except Exception as e:
-            # Errores inesperados no se reintentan
-            logger.error("Error inesperado: %s", e)
+            # Unexpected errors are not retried
+            logger.error("Unexpected error: %s", e)
             raise
 
     raise RuntimeError(
-        f"No se pudo obtener datos de la API después de {MAX_RETRIES} intentos. "
-        f"Último error: {last_exception}"
+        f"Data could not be retrieved from the API after {MAX_RETRIES} attempts. "
+        f"Last error: {last_exception}"
     )

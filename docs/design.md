@@ -1,147 +1,254 @@
-# Proyecto: NASA APOD Data Pipeline
+# NASA APOD Data Pipeline - Technical Design Document
 
-**Versión:** 1.0  
-**Autor:** Mauri   
-**Fecha:** 2026-06-28  
-**Estado:** Diseño aprobado – listo para implementación  
-
----
-
-## 1. Resumen ejecutivo
-
-Construcción de un pipeline automatizado que extrae semanalmente la foto astronómica del día (APOD) de la API pública de la NASA, normaliza los datos, los almacena en una base de datos NoSQL en la nube y expone una galería web accesible desde cualquier dispositivo. El proyecto está diseñado íntegramente sobre la capa gratuita de Google Cloud, sin coste operativo, y sigue prácticas profesionales de ingeniería de datos (secretos seguros, idempotencia, reintentos, notificaciones).
+**Version:** 1.1  
+**Author:** Mauricio L. J. B.  
+**Date:** 2026-06-28  
+**Status:** Approved Design – Production Ready
 
 ---
 
-## 2. Requisitos funcionales
+## 1. Executive Summary
 
-- **RF1 – Carga histórica (backfill):** La primera ejecución del pipeline debe recuperar todos los APOD desde el 2020‑01‑01 hasta el día actual.
-- **RF2 – Carga incremental semanal:** Una vez completada la carga histórica, el sistema ejecutará automáticamente una extracción semanal cada lunes a las 06:00 UTC, obteniendo los APOD de los últimos 7 días (con solapamiento de 1 día para asegurar cobertura).
-- **RF3 – Normalización:** Los datos crudos se limpiarán y normalizarán (detalle en sección 4).
-- **RF4 – Idempotencia:** La clave natural `date` (YYYY‑MM‑DD) garantiza que ningún registro se duplique. Operación de inserción/actualización (upsert).
-- **RF5 – Acceso remoto:** Los datos estarán disponibles mediante una galería web de fotos con posibilidad de ver la metadata de cada imagen.
-- **RF6 – Notificaciones:** Se enviará un correo electrónico si la extracción falla tras agotar los reintentos.
-- **RF7 – Seguridad:** La API key de la NASA se almacenará en Secret Manager y nunca estará presente en el código fuente.
+This document describes the design of a production-oriented, serverless ETL pipeline built on Google Cloud Platform that automatically ingests NASA's Astronomy Picture of the Day (APOD) dataset, performs data normalization and incremental loading, stores the information in Firestore, and exposes it through a responsive web application.
+
+The project was intentionally designed to operate entirely within the Google Cloud free tier while following professional data engineering practices, including secure secret management, idempotent processing, retry mechanisms, logging, and failure notifications.
 
 ---
 
-## 3. Stack tecnológico
+## 2. Functional Requirements
 
-| Componente        | Tecnología                  | Justificación                                                                 |
-| ----------------- | --------------------------- | ----------------------------------------------------------------------------- |
-| Orquestación      | Cloud Scheduler + Cloud Run | Serverless, capa gratuita generosa, escalable a cero.                         |
-| Base de datos     | Firestore (modo nativo)     | Modelo de documentos ideal para APOD; SDK web directo; sin necesidad de API intermedia. |
-| Almacenamiento de secretos | Secret Manager       | Gestión profesional de secretos, rotación, auditoría.                         |
-| Notificaciones    | SendGrid                    | 100 correos/día gratis, fácil integración vía REST.                           |
-| Frontend          | Firebase Hosting + HTML/JS  | Hospedaje gratuito con SSL; consumo directo de Firestore desde el navegador.   |
-| Lenguaje          | Python 3.10+                | Robusto, excelente soporte para GCP y manejo de JSON.                         |
-
----
-
-## 4. Esquema de datos en Firestore
-
-**Colección:** `apod`  
-**ID del documento:** fecha en formato `YYYY-MM-DD` (string)
-
-| Campo            | Tipo      | Descripción                                                                 |
-| ---------------- | --------- | --------------------------------------------------------------------------- |
-| `date`           | string    | Fecha del APOD (mismo que el ID).                                           |
-| `title`          | string    | Título de la imagen/video.                                                  |
-| `explanation`    | string    | Texto explicativo (limpio de entidades HTML).                               |
-| `url`            | string    | URL de la imagen en calidad estándar.                                       |
-| `hdurl`          | string    | URL de la imagen en HD (puede estar vacío).                                 |
-| `media_type`     | string    | "image" o "video".                                                          |
-| `copyright`      | string    | Nombre del autor o "Public Domain".                                         |
-| `thumbnail_url`  | string    | Solo para videos: URL del thumbnail de YouTube.                             |
-| `load_timestamp` | timestamp | Marca de tiempo UTC en que el registro fue insertado/actualizado.           |
-
-**Colección de control:** `pipeline_state`  
-**ID del documento:** `apod_control`
-
-| Campo              | Tipo   | Descripción                                      |
-| ------------------ | ------ | ------------------------------------------------ |
-| `last_loaded_date` | string | Última fecha (YYYY‑MM‑DD) cargada exitosamente.  |
-| `updated_at`       | timestamp | Momento de la última actualización del control. |
+- **FR1 – Historical Backfill:** The pipeline must retrieve all APOD records from 2020-01-01 through the current date during its first execution.
+- **FR2 – Weekly Incremental Loads:** After the initial load, the pipeline automatically executes every Monday at 06:00 UTC and ingests the most recent records using an overlapping extraction window.
+- **FR3 – Data Normalization:** Raw API responses are cleaned and normalized before storage.
+- **FR4 – Idempotency:** The natural key `date` (YYYY-MM-DD) guarantees that records are never duplicated. Upsert operations are used throughout the loading process.
+- **FR5 – Remote Access:** Data is made available through a responsive web gallery accessible from any device.
+- **FR6 – Notifications:** Email alerts are sent whenever extraction or processing fails after all retry attempts have been exhausted.
+- **FR7 – Security:** Secrets are securely stored in Google Cloud Secret Manager and are never committed to version control.
 
 ---
 
-## 5. Estrategia de carga (backfill e incremental)
+## 3. Technology Stack
 
-### 5.1 Carga histórica inicial (backfill)
-- Se detecta que el documento `pipeline_state/apod_control` no existe o `last_loaded_date` es nulo.
-- El pipeline solicita los APOD en bloques de 7 días consecutivos, comenzando el 2020‑01‑01.
-- Por cada bloque:
-  1. Llama a la API con `start_date` y `end_date`.
-  2. Normaliza los registros obtenidos.
-  3. Los inserta en Firestore usando `set()` con `merge=True` (upsert).
-  4. Actualiza el documento de control con la nueva `last_loaded_date`.
-- Se respeta un retardo de 200 ms entre llamadas para mantenerse muy por debajo del rate limit (1000 req/hora).
-
-### 5.2 Carga semanal incremental
-- Se ejecuta cada lunes a las 06:00 UTC.
-- Lee `last_loaded_date` del documento de control.
-- Define la ventana de extracción: desde `last_loaded_date` (inclusive) hasta el día anterior a la ejecución (inclusive).  
-  Esto garantiza el solapamiento y la cobertura total.
-- Realiza una única llamada a la API con `start_date` y `end_date`.
-- Si la respuesta es exitosa, normaliza y almacena los registros de igual forma que el backfill.
-- Actualiza `last_loaded_date` a la fecha máxima de los registros cargados.
+| Component | Technology | Justification |
+|----------|----------|----------|
+| Orchestration | Cloud Scheduler + Cloud Run | Fully serverless architecture with scale-to-zero capabilities. |
+| Database | Firestore (Native Mode) | Document-oriented model ideal for APOD metadata and direct frontend integration. |
+| Secrets Management | Secret Manager | Secure storage, auditing, and secret rotation support. |
+| Notifications | SendGrid | Free tier support and easy REST API integration. |
+| Frontend | Firebase Hosting + HTML/JavaScript | Free SSL-enabled static hosting with Firestore SDK integration. |
+| Programming Language | Python 3.10+ | Excellent support for GCP services and JSON processing. |
 
 ---
 
-## 6. Manejo de errores y reintentos
+## 4. System Architecture
 
-- El endpoint de Cloud Run implementa **5 reintentos con backoff exponencial** (2, 4, 8, 16, 32 segundos) dentro de la misma ejecución.
-- Si todos los intentos fallan:
-  - Se registra el error en Cloud Logging.
-  - Se envía un correo electrónico al responsable mediante SendGrid.
-  - El servicio termina con código de error, lo que permite que Cloud Scheduler lo vuelva a intentar el próximo lunes (o manualmente).
-- Los errores contemplados incluyen: timeout de conexión, HTTP 503, HTTP 403 (API key inválida), errores de parseo del JSON.
-- En ningún caso se pierden datos ya almacenados; la idempotencia garantiza la coherencia.
-
----
-
-## 7. Seguridad
-
-- **API key de NASA:** almacenada en Secret Manager. Cloud Run la recupera en tiempo de ejecución mediante la biblioteca cliente de GCP. El secreto se monta como variable de entorno en el contenedor.
-- **Acceso a Firestore:**  
-  - El servicio Cloud Run usa una cuenta de servicio con rol `roles/datastore.user` (escritura).  
-  - El frontend web usa Firebase Authentication anónima + reglas de seguridad de Firestore que permiten solo lectura pública de la colección `apod`.  
-- **Cloud Scheduler:** usa una cuenta de servicio con permiso `roles/run.invoker` para llamar al Cloud Run.
+```mermaid
+flowchart TD
+    A[Cloud Scheduler] --> B[Cloud Run]
+    B --> C[Extract NASA APOD Data]
+    C --> D[Transform and Normalize Data]
+    D --> E[Load into Firestore]
+    B --> F[Secret Manager]
+    B --> G[SendGrid Notifications]
+    B --> H[Cloud Logging]
+    E --> I[Firebase Hosting Frontend]
+```
 
 ---
 
-## 8. Visualización (galería web)
+## 5. Firestore Data Model
 
-- Aplicación web estática alojada en Firebase Hosting (dominio público `*.web.app`).
-- Implementación: HTML5, CSS3 y JavaScript vanilla (o un framework ligero como Alpine.js).
-- Al cargar la página, el cliente Firestore realiza una consulta a la colección `apod` ordenada por `date` descendente y limitada a 50 documentos (paginación bajo demanda).
-- Vista de grilla: miniaturas de las imágenes (`url`) con el título superpuesto.
-- Al hacer clic en una imagen: se muestra una ventana modal con la metadata completa (`explanation`, `copyright`, `hdurl`, etc.).
-- Diseño responsive, apto para móviles.
+**Collection:** `apod`  
+**Document ID:** `YYYY-MM-DD`
 
----
+| Field | Type | Description |
+|------|------|------|
+| date | string | APOD publication date. |
+| title | string | Image or video title. |
+| explanation | string | Cleaned explanatory text. |
+| url | string | Standard resolution image URL. |
+| hdurl | string | High-definition image URL (optional). |
+| media_type | string | Either `image` or `video`. |
+| copyright | string | Content author or `Public Domain`. |
+| thumbnail_url | string | Thumbnail URL for video entries. |
+| load_timestamp | timestamp | UTC timestamp generated during ingestion. |
 
-## 9. Monitoreo y logging
+### Control Collection
 
-- Todos los logs de Cloud Run se envían a Cloud Logging de forma automática.
-- Se registran al menos:
-  - Inicio y fin de cada extracción.
-  - Cantidad de registros obtenidos y almacenados.
-  - Errores y reintentos.
-  - Actualización del documento de control.
-- El correo electrónico de fallo incluye el mensaje de error y un enlace a los logs.
+Collection: `pipeline_state`  
+Document ID: `apod_control`
 
----
-
-## 10. Entregables del proyecto
-
-1. Código fuente del pipeline Python (desplegable en Cloud Run).
-2. Script de despliegue o comando `gcloud` para crear los recursos.
-3. Configuración de Secret Manager y Cloud Scheduler.
-4. Reglas de seguridad de Firestore (`firestore.rules`).
-5. Frontend web (HTML/JS) listo para desplegar en Firebase Hosting.
-6. Documentación de uso y mantenimiento.
+| Field | Type | Description |
+|------|------|------|
+| last_loaded_date | string | Last successfully loaded date. |
+| updated_at | timestamp | Last control document update timestamp. |
 
 ---
 
-**Próximo paso:** Implementación incremental, comenzando por la función de extracción y normalización en local, luego despliegue en Cloud Run y finalmente integración con Firestore y el frontend.
+## 6. Data Quality Considerations
+
+The pipeline enforces the following data quality rules:
+
+- `date` must be unique and is used as the natural key.
+- `media_type` must be either `image` or `video`.
+- HTML entities and residual HTML tags are removed from text fields.
+- Null and missing values are handled gracefully.
+- `load_timestamp` is generated automatically during ingestion.
+- `hdurl` and `thumbnail_url` are optional fields.
+- Copyright values are standardized whenever possible.
+
+---
+
+## 7. Loading Strategy
+
+### Historical Backfill
+
+The initial execution performs a historical load starting from 2020-01-01.
+
+The dataset is retrieved in seven-day batches to:
+
+- Minimize the number of API calls.
+- Simplify retry operations.
+- Remain well below NASA's rate limits.
+- Facilitate incremental loading strategies.
+
+Each batch is:
+
+1. Extracted from the NASA API.
+2. Normalized and validated.
+3. Upserted into Firestore.
+4. Used to update the control document.
+
+A 200 ms delay is applied between requests.
+
+### Incremental Loads
+
+Weekly executions:
+
+- Run every Monday at 06:00 UTC.
+- Read the `last_loaded_date` value.
+- Extract records between the last loaded date and the previous day.
+- Perform normalization and loading.
+- Update the control document.
+
+The overlapping extraction window guarantees complete coverage and simplifies recovery from partial failures.
+
+---
+
+## 8. Error Handling and Retry Strategy
+
+The pipeline implements five retries using exponential backoff:
+
+- 2 seconds
+- 4 seconds
+- 8 seconds
+- 16 seconds
+- 32 seconds
+
+The following failure scenarios are considered:
+
+- NASA API timeouts.
+- HTTP 403 and HTTP 503 responses.
+- JSON parsing errors.
+- Firestore write failures.
+- Secret Manager access failures.
+- Cloud Run execution timeouts.
+- Unexpected exceptions.
+
+If all retries fail:
+
+- Errors are logged in Cloud Logging.
+- An email notification is sent through SendGrid.
+- The execution terminates safely.
+
+The pipeline guarantees document-level idempotency and can be re-executed without producing duplicate records.
+
+---
+
+## 9. Security Considerations
+
+- All secrets are managed exclusively through Google Cloud Secret Manager.
+- Secrets are never committed to version control.
+- Cloud Run uses a dedicated service account with the minimum required permissions.
+- Firestore rules provide read-only access for frontend consumption.
+- Cloud Scheduler invokes Cloud Run using the appropriate IAM role.
+
+---
+
+## 10. Data Consumption Layer
+
+The frontend is implemented as a static web application hosted on Firebase Hosting.
+
+Features include:
+
+- Responsive image gallery.
+- Direct Firestore queries ordered by publication date.
+- Lazy pagination support.
+- Modal view for complete APOD metadata.
+- Mobile-friendly design.
+
+---
+
+## 11. Monitoring and Logging
+
+Cloud Run automatically exports logs to Cloud Logging.
+
+The pipeline records:
+
+- Execution start and completion.
+- Number of records extracted and loaded.
+- Retry attempts.
+- Errors and exceptions.
+- Control document updates.
+
+Failure notifications include:
+
+- Error description.
+- Timestamp.
+- Link to Cloud Logging resources.
+
+---
+
+## 12. Cost Considerations
+
+The project was intentionally designed to run within Google Cloud's free tier.
+
+| Service | Estimated Monthly Cost |
+|--------|--------|
+| Cloud Run | $0 |
+| Cloud Scheduler | $0 |
+| Firestore | $0 |
+| Firebase Hosting | $0 |
+| Secret Manager | $0 |
+| SendGrid | Free Tier |
+
+**Estimated Monthly Cost: $0 USD**
+
+---
+
+## 13. Project Deliverables
+
+- Python ETL pipeline.
+- Cloud Run deployment configuration.
+- Cloud Scheduler configuration.
+- Firestore security rules.
+- Firebase Hosting frontend.
+- Technical documentation.
+
+---
+
+## 14. Future Improvements
+
+Potential future enhancements include:
+
+- GitHub Actions-based CI/CD deployments.
+- Additional data validation tests.
+- Monitoring dashboards.
+- Cloud Storage backup strategies.
+- Container vulnerability scanning.
+- Advanced frontend filtering capabilities.
+- API layer for external consumers.
+
+---
+
+This project demonstrates the implementation of a production-oriented, serverless data engineering pipeline using modern Google Cloud services and industry best practices.

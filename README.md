@@ -1,69 +1,72 @@
 # NASA APOD Data Pipeline
 
-Pipeline automatizado que extrae, normaliza y almacena la **Astronomy Picture of the Day** (APOD) de la NASA, y la expone en una galería web accesible desde cualquier dispositivo.
+An automated pipeline that extracts, normalizes, and stores NASA's **Astronomy Picture of the Day** (APOD) data and exposes it through a responsive web gallery accessible from any device.
 
-Construido íntegramente sobre la capa gratuita de Google Cloud, este proyecto demuestra un flujo de trabajo profesional de ingeniería de datos: extracción con tolerancia a fallos, limpieza avanzada, carga idempotente en Firestore, orquestación con Cloud Run + Cloud Scheduler, secretos gestionados con Secret Manager y un frontend mínimo alojado en Firebase Hosting.
+Built entirely on Google Cloud's free tier, this project showcases a production-oriented data engineering workflow featuring fault-tolerant extraction, advanced data cleaning, idempotent loading into Firestore, orchestration with Cloud Run and Cloud Scheduler, secret management with Secret Manager, and a lightweight frontend hosted on Firebase Hosting.
 
 ---
 
-## 🏗️ Arquitectura
+## Architecture
 
-[GCP] Cloud Scheduler (cada lunes 6 AM UTC)
-       │
-       ▼
+```text
+[GCP] Cloud Scheduler (every Monday at 6:00 AM UTC)
+                |
+                v
 [GCP] Cloud Run (Flask + gunicorn)
-       │
-       ├─ Extrae (NASA API con backoff)
-       ├─ Transforma y normaliza
-       ├─ Carga en Firestore (upsert)
-       ├─ Actualiza documento de control
-       └─ Envía alerta por email si falla (SendGrid)
-       │
-       ▼
-[GCP] Firestore (colección `apod`)
-       │
-       ▼
-[Firebase Hosting] Frontend vanilla JS (lectura directa)
+                |
+                |-- Extracts data (NASA API with backoff)
+                |-- Transforms and normalizes data
+                |-- Loads data into Firestore (upsert)
+                |-- Updates control document
+                |-- Sends email alerts on failure (SendGrid)
+                v
+[GCP] Firestore (collection `apod`)
+                |
+                v
+[Firebase Hosting] Vanilla JS Frontend (direct Firestore reads)
+```
 
-## 🛠️ Stack tecnológico
+## Technology Stack
 
-| Categoría        | Tecnología                        |
-|------------------|-----------------------------------|
-| Orquestación     | Cloud Scheduler + Cloud Run       |
-| Base de datos    | Firestore (modo nativo)           |
-| Secretos         | Secret Manager                    |
-| Notificaciones   | SendGrid                          |
-| Frontend         | Firebase Hosting + SDK Firestore  |
-| Testing          | Pytest                            |
-| Contenedores     | Docker                            |
-| CI/CD            | Cloud Build                       |
+| Category | Technology |
+|---------|---------|
+| Orchestration | Cloud Scheduler + Cloud Run |
+| Database | Firestore (Native Mode) |
+| Secrets Management | Secret Manager |
+| Notifications | SendGrid |
+| Frontend | Firebase Hosting + Firestore SDK |
+| Testing | Pytest |
+| Containers | Docker |
+| CI/CD | Cloud Build |
 
-### Estructura del repositorio
+### Repository Structure
+
 ```text
 nasa-apod-pipeline/
-├── .github/workflows/ci.yml       # Integración continua
-├── pipeline/                      # Código del pipeline
-│   ├── main.py                    # Entrypoint de Cloud Run
-│   ├── extract.py                 # Llamada a API con reintentos
-│   ├── transform.py               # Limpieza y normalización
-│   ├── load.py                    # Carga en Firestore
-│   ├── utils.py                   # Logging y envío de emails
+├── .github/workflows/ci.yml      # Continuous Integration
+├── pipeline/                     # Pipeline source code
+│   ├── main.py                   # Cloud Run entrypoint
+│   ├── extract.py                # API calls with retries
+│   ├── transform.py              # Data cleaning and normalization
+│   ├── load.py                   # Firestore loading logic
+│   ├── utils.py                  # Logging and email utilities
 │   ├── requirements.txt
 │   └── Dockerfile
-├── frontend/index.html            # Galería web (HTML+JS vanilla)
+├── frontend/index.html           # Web gallery (HTML + Vanilla JS)
 ├── config/
-│   ├── .env.example               # Variables de entorno necesarias
-│   └── firestore.rules            # Reglas de seguridad
-├── docs/design.md                 # Documento de diseño detallado
-├── tests/test_transform.py        # Tests unitarios
-├── scripts/deploy.sh              # Comandos de despliegue
+│   ├── .env.example              # Required environment variables
+│   └── firestore.rules           # Security rules
+├── docs/design.md                # Detailed design document
+├── tests/test_transform.py       # Unit tests
+├── scripts/deploy.sh             # Deployment commands
 └── README.md
 ```
+
 ---
 
-## 🚀 Despliegue desde cero
+## Deployment from Scratch
 
-### 1. Clonar e instalar dependencias locales
+### 1. Clone the repository and install dependencies
 
 ```bash
 git clone https://github.com/Mauriljb/nasa-apod-pipeline.git
@@ -71,86 +74,107 @@ cd nasa-apod-pipeline
 python -m venv env && source env/bin/activate
 pip install -r pipeline/requirements.txt
 ```
-### 2. Configurar variables de entorno
 
-Copiá `.env.example` a `.env` y completá:
+### 2. Configure environment variables
+
+Copy `.env.example` to `.env` and fill in the required values:
+
 ```env
-NASA_API_KEY=tu-api-key
-GOOGLE_CLOUD_PROJECT=primer-proyecto-103
-SENDGRID_API_KEY=tu-sendgrid-key
-TO_EMAIL=tu@email.com
+NASA_API_KEY=your-api-key
+GOOGLE_CLOUD_PROJECT=your-gcp-project-id
+SENDGRID_API_KEY=your-sendgrid-key
+TO_EMAIL=your@email.com
 FROM_EMAIL=pipeline@example.com
 ```
-### 3. Ejecutar tests localmente
+
+### 3. Run tests locally
+
 ```bash
 pytest tests/ -v
 ```
-### 4. Construir imagen con Cloud Build
+
+### 4. Build the container image with Cloud Build
+
 ```bash
 gcloud builds submit --tag gcr.io/primer-proyecto-103/apod-pipeline --region=global
 ```
-### 5. Almacenar secretos
+
+### 5. Store secrets in Secret Manager
+
 ```bash
-echo -n "TU_API_KEY" | gcloud secrets create nasa-api-key --data-file=-
+echo -n "YOUR_API_KEY" | gcloud secrets create nasa-api-key --data-file=-
 gcloud secrets add-iam-policy-binding nasa-api-key \
-  --member="serviceAccount:apod-pipeline-sa@..." \
-  --role="roles/secretmanager.secretAccessor"
+--member="serviceAccount:apod-pipeline-sa@..." \
+--role="roles/secretmanager.secretAccessor"
 ```
-### 6. Desplegar en Cloud Run
+
+### 6. Deploy to Cloud Run
+
 ```bash
 gcloud run deploy apod-pipeline \
-  --image gcr.io/primer-proyecto-103/apod-pipeline \
-  --region us-central1 \
-  --allow-unauthenticated \
-  --set-secrets="NASA_API_KEY=nasa-api-key:latest" \
-  --service-account=apod-pipeline-sa@...
+--image gcr.io/primer-proyecto-103/apod-pipeline \
+--region us-central1 \
+--allow-unauthenticated \
+--set-secrets="NASA_API_KEY=nasa-api-key:latest" \
+--service-account=apod-pipeline-sa@...
 ```
-### 7. Configurar Cloud Scheduler
+
+### 7. Configure Cloud Scheduler
+
 ```bash
 gcloud scheduler jobs create http apod-weekly \
-  --schedule "0 6 * * 1" \
-  --uri "URL_DE_CLOUD_RUN" \
-  --http-method POST
+--schedule "0 6 * * 1" \
+--uri "CLOUD_RUN_URL" \
+--http-method POST
 ```
-### 8. Desplegar frontend
+
+### 8. Deploy the frontend
+
 ```bash
-firebase init hosting   # carpeta pública: frontend
+firebase init hosting
+# Public directory: frontend
 firebase deploy --only hosting
 ```
-## 🧪 Backfill e incremental
 
-* Primera ejecución: el pipeline detecta ausencia del documento de control y ejecuta un backfill completo desde 2020-01-01 hasta ayer, en bloques de 7 días.
+## Backfill and Incremental Loads
 
-* Ejecuciones semanales: carga solo los 7 días anteriores con solapamiento de 1 día.
-* Idempotencia: la clave natural date (YYYY-MM-DD) garantiza que los registros no se dupliquen.
+- First execution: if the control document is missing, the pipeline performs a full backfill from 2020-01-01 through yesterday, processing data in 7-day batches.
+- Weekly executions: only the previous seven days are loaded, with a one-day overlap for safety.
+- Idempotency: the natural key `date` (YYYY-MM-DD) guarantees that records are never duplicated.
 
-## 📊 Normalización aplicada
-* Decodificación de entidades HTML (`&amp;`, `&lt;`, etc.)
-* Eliminación de tags `<br>`, `<p>` y otros residuos HTML
-* Limpieza de saltos de línea y colapso de espacios
-* Estandarización del campo copyright
-* Gestión de valores nulos y diferencias entre imágenes/videos
+## Data Normalization
 
-Ver `docs/design.md` para todos los detalles.
-## 🔐 Seguridad
+- HTML entity decoding (`&`, `<`, etc.)
+- Removal of HTML tags and residual markup
+- Cleanup of line breaks and whitespace normalization
+- Standardization of the `copyright` field
+- Proper handling of null values and image/video differences
 
-* API key de NASA en Secret Manager
-* Cuenta de servicio con privilegios mínimos (datastore.user)
-* Reglas de Firestore: solo lectura pública en la colección apod
-* .env nunca versionado
+See `docs/design.md` for implementation details.
 
-## 📈 Monitoreo
+## Security
 
-* Logs centralizados en Cloud Logging
-* Alertas por email vía SendGrid ante fallos (configuración pendiente de activación final)
-* Reintentos con backoff exponencial (doble capa: urllib3 + aplicación)
+- NASA API key stored in Secret Manager
+- Service account configured with the principle of least privilege (`datastore.user`)
+- Firestore rules configured for public read-only access to the `apod` collection
+- `.env` files are never versioned
 
-## 📸 Captura del frontend
+## Monitoring
 
-https://docs/screenshot.png
-## 📄 Licencia
+- Centralized logs through Cloud Logging
+- Email alerts via SendGrid when failures occur (pending final activation)
+- Exponential backoff retry strategy (urllib3 + application layer)
 
-MIT © Mauricio L. J. B. (2026)
+## Frontend Screenshot
 
-¿Querés ejecutarlo en tu propio proyecto?
-Seguí los pasos de despliegue y reemplazá primer-proyecto-103 por tu ID de proyecto GCP.
+`docs/screenshot.png`
+
+## License
+
+MIT License
+
+© Mauricio L. (2026)
+
+---
+
+Want to run it in your own Google Cloud project? Follow the deployment steps above and replace `primer-proyecto-103` with your own GCP project ID.

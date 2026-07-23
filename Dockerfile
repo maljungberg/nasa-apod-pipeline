@@ -2,21 +2,21 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Copiar requirements.txt desde pipeline/
+# Copy requirements.txt from pipeline/
 COPY pipeline/requirements.txt .
 
-# Instalar dependencias
+# Install dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copiar todo el contenido de pipeline/ a /app (pero respetando la estructura)
-# Queremos que los archivos queden en /app/pipeline/ y también que main.py esté en pipeline/
+# Copy all content from pipeline/ to /app (but respecting the structure)
+# We want the files to be in /app/pipeline/ and also main.py to be in pipeline/
 COPY pipeline/ pipeline/
 
-# Ajustar PYTHONPATH para que /app sea reconocido como directorio de paquetes
+# Set PYTHONPATH so that /app is recognised as a package directory
 ENV PYTHONPATH=/app
 
-# Puerto
+# Port
 ENV PORT=8080
 
-# Entrypoint: gunicorn busca el módulo pipeline.main y dentro de él la variable 'app'
+# Entry point: Gunicorn looks for the `pipeline.main` module and, within it, the 'app' variable
 CMD exec gunicorn --bind :$PORT --workers 1 --threads 8 --timeout 0 pipeline.main:app
