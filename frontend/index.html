@@ -49,26 +49,20 @@
       onSnapshot
     } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-    const firebaseConfig = {
-      projectId: "primer-proyecto-103",
-    };
+    const firebaseConfig = { projectId: "primer-proyecto-103" };
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
     const PAGE_SIZE = 30;
-    const MAX_REALTIME_ITEMS = 7;  // escuchamos los últimos 7 documentos
-
+    const MAX_REALTIME_ITEMS = 7;
     let lastVisibleDoc = null;
     let noMoreData = false;
-    let newestDateLoaded = null;   // fecha del APOD más reciente mostrado
+    let newestDateLoaded = null;
 
-    // Elementos del DOM
     const gallery = document.getElementById("gallery");
     const loadMoreBtn = document.getElementById("load-more-btn");
 
-    // ------------------------------------------------------------
-    // Funciones de miniatura, video y modal (sin cambios)
-    // ------------------------------------------------------------
+    // Función para obtener miniatura o placeholder mejorado
     function getThumbnailUrl(data) {
       if (data.media_type === "image") {
         return data.url;
@@ -80,7 +74,15 @@
       if (youtubeId) {
         return `https://img.youtube.com/vi/${youtubeId}/0.jpg`;
       }
-      return "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='200' fill='%23333'%3E%3Crect width='300' height='200'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='20' fill='%23fff'%3EVideo%3C/text%3E%3C/svg%3E";
+      const title = data.title || "Video";
+      const safeTitle = title.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+      return `data:image/svg+xml,${encodeURIComponent(`
+        <svg xmlns="http://www.w3.org/2000/svg" width="300" height="200" viewBox="0 0 300 200">
+          <rect width="300" height="200" fill="#1a1a2e"/>
+          <polygon points="130,70 130,130 170,100" fill="#e0e0e0"/>
+          <text x="150" y="175" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#cccccc">${safeTitle}</text>
+        </svg>
+      `.trim())}`;
     }
 
     function getYouTubeVideoId(url) {
@@ -99,8 +101,7 @@
       card.className = "card";
       const thumbnailUrl = getThumbnailUrl(data);
       card.innerHTML = `
-        <img src="${thumbnailUrl}" alt="${data.title}" loading="lazy"
-             onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22300%22 height=%22200%22 fill=%22%23333%22%3E%3Crect width=%22300%22 height=%22200%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 font-size=%2220%22 fill=%22%23fff%22%3ESin imagen%3C/text%3E%3C/svg%3E'">
+        <img src="${thumbnailUrl}" alt="${data.title}" loading="lazy">
         <div class="info">
           <h3>${data.title}</h3>
           <small>${data.date}</small>
@@ -115,7 +116,6 @@
       document.getElementById("modal-explanation").textContent = data.explanation;
       document.getElementById("modal-date").textContent = data.date;
       document.getElementById("modal-copyright").textContent = data.copyright || "Public Domain";
-      
       const hdlink = document.getElementById("modal-hd");
       if (data.hdurl) {
         hdlink.href = data.hdurl;
@@ -123,7 +123,6 @@
       } else {
         hdlink.style.display = "none";
       }
-
       const mediaContainer = document.getElementById("modal-media");
       mediaContainer.innerHTML = "";
 
@@ -138,12 +137,26 @@
           iframe.allowFullscreen = true;
           mediaContainer.appendChild(iframe);
         } else {
+          // Video alojado en APOD (no YouTube)
           const video = document.createElement("video");
           video.src = data.url;
           video.controls = true;
           video.style.maxWidth = "90%";
           video.style.maxHeight = "70vh";
           mediaContainer.appendChild(video);
+
+          const linkBtn = document.createElement("button");
+          linkBtn.textContent = "Ver en APOD";
+          linkBtn.style.marginTop = "10px";
+          linkBtn.style.padding = "8px 16px";
+          linkBtn.style.background = "#e0e0e0";
+          linkBtn.style.border = "none";
+          linkBtn.style.borderRadius = "4px";
+          linkBtn.style.cursor = "pointer";
+          linkBtn.addEventListener("click", () => {
+            window.open(data.url, '_blank');
+          });
+          mediaContainer.appendChild(linkBtn);
         }
       } else {
         const img = document.createElement("img");
@@ -160,32 +173,21 @@
       document.getElementById("modal-media").innerHTML = "";
     }
 
-    // ------------------------------------------------------------
-    // Paginación y tiempo real
-    // ------------------------------------------------------------
     function prependCard(data) {
       const card = createCard(data);
-      const gallery = document.getElementById("gallery");
       gallery.insertBefore(card, gallery.firstChild);
     }
 
     async function loadInitialPage() {
-      const q = query(
-        collection(db, "apod"),
-        orderBy("date", "desc"),
-        limit(PAGE_SIZE)
-      );
+      const q = query(collection(db, "apod"), orderBy("date", "desc"), limit(PAGE_SIZE));
       const snapshot = await getDocs(q);
       if (snapshot.empty) {
         noMoreData = true;
         loadMoreBtn.style.display = "none";
         return;
       }
-      snapshot.forEach(doc => {
-        gallery.appendChild(createCard(doc.data()));
-      });
+      snapshot.forEach(doc => gallery.appendChild(createCard(doc.data())));
       lastVisibleDoc = snapshot.docs[snapshot.docs.length - 1];
-      // Guardar la fecha más reciente (primer documento)
       if (snapshot.docs.length > 0) {
         newestDateLoaded = snapshot.docs[0].data().date;
       }
@@ -197,48 +199,29 @@
 
     function startRealTimeListener() {
       if (!newestDateLoaded) return;
-      const recentQuery = query(
-        collection(db, "apod"),
-        orderBy("date", "desc"),
-        limit(MAX_REALTIME_ITEMS)
-      );
+      const recentQuery = query(collection(db, "apod"), orderBy("date", "desc"), limit(MAX_REALTIME_ITEMS));
       onSnapshot(recentQuery, (snapshot) => {
         if (snapshot.empty) return;
         const newDocs = [];
         snapshot.forEach(doc => {
           const data = doc.data();
-          if (data.date > newestDateLoaded) {
-            newDocs.push(data);
-          }
+          if (data.date > newestDateLoaded) newDocs.push(data);
         });
-        // Insertar de más antiguo a más nuevo para mantener orden descendente
-        newDocs.reverse().forEach(data => {
-          prependCard(data);
-        });
-        if (newDocs.length > 0) {
-          newestDateLoaded = snapshot.docs[0].data().date;  // actualizar referencia
-        }
+        newDocs.reverse().forEach(data => prependCard(data));
+        if (newDocs.length > 0) newestDateLoaded = snapshot.docs[0].data().date;
       });
     }
 
-    // Paginación con botón "Cargar más"
     async function loadMore() {
       if (noMoreData || !lastVisibleDoc) return;
-      const q = query(
-        collection(db, "apod"),
-        orderBy("date", "desc"),
-        startAfter(lastVisibleDoc),
-        limit(PAGE_SIZE)
-      );
+      const q = query(collection(db, "apod"), orderBy("date", "desc"), startAfter(lastVisibleDoc), limit(PAGE_SIZE));
       const snapshot = await getDocs(q);
       if (snapshot.empty) {
         noMoreData = true;
         loadMoreBtn.style.display = "none";
         return;
       }
-      snapshot.forEach(doc => {
-        gallery.appendChild(createCard(doc.data()));
-      });
+      snapshot.forEach(doc => gallery.appendChild(createCard(doc.data())));
       lastVisibleDoc = snapshot.docs[snapshot.docs.length - 1];
       if (snapshot.docs.length < PAGE_SIZE) {
         noMoreData = true;
@@ -246,7 +229,6 @@
       }
     }
 
-    // Eventos
     loadMoreBtn.addEventListener("click", async () => {
       loadMoreBtn.disabled = true;
       loadMoreBtn.textContent = "Cargando...";
@@ -260,10 +242,7 @@
       if (e.target === this) closeModal();
     });
 
-    // Inicialización
-    loadInitialPage().then(() => {
-      startRealTimeListener();
-    });
+    loadInitialPage().then(() => startRealTimeListener());
   </script>
 </body>
 </html>

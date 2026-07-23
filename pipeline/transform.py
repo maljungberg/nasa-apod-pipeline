@@ -11,7 +11,6 @@ from typing import Dict, Any, Optional, List
 
 logger = logging.getLogger(__name__)
 
-
 def clean_copyright(raw: Optional[str]) -> str:
     """
     Limpia el campo copyright.
@@ -102,7 +101,6 @@ def clean_record(record: Dict[str, Any]) -> Dict[str, Any]:
 
     # Thumbnail: solo presente si thumbs=True y el día es video
     thumbnail_url = record.get("thumbnail_url", "") or ""
-
     # Timestamp de carga en UTC
     load_timestamp = datetime.now(timezone.utc).isoformat()
 
