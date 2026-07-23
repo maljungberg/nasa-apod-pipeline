@@ -11,28 +11,23 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      # Step 1: Check out your code
       - name: Checkout code
-        uses: actions/checkout@v4
-      
-      # Step 2: Set up Python
+        uses: actions/checkout@v5       # <-- v5 (uses Node 24)
+
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6   # <-- v6 (uses Node 24)
         with:
           python-version: '3.11'
-      
-      # Step 3: Install dependencies
+
       - name: Install dependencies
         run: |
           pip install --upgrade pip
           pip install -r pipeline/requirements.txt
-      
-      # Step 4: Run tests
+
       - name: Run unit tests
         run: pytest tests/ -v
-      
-      # Step 5 (optional): Lint your code
+
       - name: Lint with flake8
         run: |
           pip install flake8
-          flake8 pipeline/ --max-line-length=120 --ignore=E501,W503
+          flake8 pipeline/ --max-line-length=120
