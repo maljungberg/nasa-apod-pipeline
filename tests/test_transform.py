@@ -180,3 +180,4 @@ class TestTransformAll:
         cleaned = transform_all(records)
         assert len(cleaned) == 2
         assert all("load_timestamp" in r for r in cleaned)
+        

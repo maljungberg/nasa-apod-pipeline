@@ -42,3 +42,4 @@ def send_failure_email(error_message: str):
         logging.info("Failure email sent to %s", to_email)
     except Exception as e:
         logging.error("Error sending email: %s", e)
+        

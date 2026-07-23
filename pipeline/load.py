@@ -23,7 +23,6 @@ def _get_client() -> Client:
     In Cloud Run, it uses the default service account.
     In local development, it needs GOOGLE_APPLICATION_CREDENTIALS or gcloud auth.
     """
-    database_id = os.environ.get("FIRESTORE_DATABASE", "apod")
     return firestore.Client()
 
 

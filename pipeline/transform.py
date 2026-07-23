@@ -11,6 +11,7 @@ from typing import Dict, Any, Optional, List
 
 logger = logging.getLogger(__name__)
 
+
 def clean_copyright(raw: Optional[str]) -> str:
     """
     Cleans the copyright field.

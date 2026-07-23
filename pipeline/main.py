@@ -8,7 +8,7 @@ import os
 import logging
 from datetime import datetime, timedelta, timezone
 
-from flask import Flask, request
+from flask import Flask
 
 from pipeline.extract import fetch_apod_range
 from pipeline.transform import transform_all
