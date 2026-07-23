@@ -2,7 +2,6 @@
 Loading module for Firestore.
 Handles the insertion of APOD records and the maintenance of the control document.
 """
-import os
 import logging
 from typing import List, Dict, Any, Optional
 
