@@ -1,5 +1,7 @@
 # NASA APOD Data Pipeline
 
+![CI](https://github.com/maljungberg/nasa-apod-pipeline/actions/workflows/ci.yml/badge.svg)
+
 An automated pipeline that extracts, normalizes, and stores NASA's **Astronomy Picture of the Day** (APOD) data and exposes it through a responsive web gallery accessible from any device.
 
 Built entirely on Google Cloud's free tier, this project showcases a production-oriented data engineering workflow featuring fault-tolerant extraction, advanced data cleaning, idempotent loading into Firestore, orchestration with Cloud Run and Cloud Scheduler, secret management with Secret Manager, and a lightweight frontend hosted on Firebase Hosting.
@@ -165,9 +167,14 @@ See `docs/design.md` for implementation details.
 - Email alerts via SendGrid when failures occur (pending final activation)
 - Exponential backoff retry strategy (urllib3 + application layer)
 
-## Frontend Screenshot
+## Architecture diagram
 
-`docs/screenshot.png`
+![Architecture](docs/diagram.png)
+
+## Frontend Screenshot
+![Galería APOD](docs/Screenshot_laptop.png)
+
+![Galería APOD](docs/Screenshot_mobile.jpeg)
 
 ## License
 

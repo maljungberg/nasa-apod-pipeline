@@ -13,10 +13,9 @@ from flask import Flask
 from pipeline.extract import fetch_apod_range
 from pipeline.transform import transform_all
 from pipeline.load import load_records, get_last_loaded_date, update_control_date
-from pipeline.utils import send_failure_email, setup_logging
+from pipeline.utils import send_failure_notification
 
 # Configure Structured Logging
-setup_logging()
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
@@ -53,7 +52,7 @@ def run_backfill():
             update_control_date(end_str)
         except Exception as e:
             logger.error("Error in backfill block %s-%s: %s", start_str, end_str, e)
-            send_failure_email(f"Backfill failed in block {start_str}-{end_str}: {e}")
+            send_failure_notification(f"Backfill failed in block {start_str}-{end_str}: {e}")
             raise  # stop backfill; the scheduler will retry later
 
         current_start = block_end + timedelta(days=1)
@@ -106,7 +105,7 @@ def execute_pipeline():
         return "OK", 200
     except Exception as e:
         logger.exception("Fallo en el pipeline: %s", e)
-        send_failure_email(str(e))
+        send_failure_notification(str(e))
         return "Error", 500
 
 

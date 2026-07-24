@@ -4,41 +4,30 @@ Features: logging, sending error emails.
 
 import logging
 import os
-from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail
+import requests
 
 
-def setup_logging():
-    """Configures structured logging for Cloud Logging."""
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        datefmt="%Y-%m-%dT%H:%M:%S%z",
-    )
+logger = logging.getLogger(__name__)
 
 
-def send_failure_email(error_message: str):
+def send_failure_notification(error_message: str):
     """
-    Sends a failure alert email using SendGrid.
-    The environment variables SENDGRID_API_KEY, TO_EMAIL and FROM_EMAIL must be defined.
+    Send a notification to Slack when the pipeline fails.
+    The webhook URL is retrieved from the SLACK_WEBHOOK_URL environment variable
+    (provided by Secret Manager).
     """
-    api_key = os.environ.get("SENDGRID_API_KEY")
-    to_email = os.environ.get("TO_EMAIL")
-    from_email = os.environ.get("FROM_EMAIL", "apod-pipeline@example.com")
-
-    if not api_key or not to_email:
-        logging.warning("SendGrid not configured. Skipping email sending.")
+    webhook_url = os.environ.get("SLACK_WEBHOOK_URL")
+    if not webhook_url:
+        logger.warning("SLACK_WEBHOOK_URL not configured. Notification omitted.")
         return
 
-    message = Mail(
-        from_email=from_email,
-        to_emails=to_email,
-        subject="Failure in NASA APOD pipeline",
-        plain_text_content=f"The pipeline failed with the following error:\n\n{error_message}",
-    )
+    payload = {
+        "text": f"❌ *Failure in the NASA APOD Pipeline*\n\n```{error_message}```"
+    }
+
     try:
-        sg = SendGridAPIClient(api_key)
-        sg.send(message)
-        logging.info("Failure email sent to %s", to_email)
+        response = requests.post(webhook_url, json=payload, timeout=10)
+        response.raise_for_status()
+        logger.info("Failure notification sent to Slack.")
     except Exception as e:
-        logging.error("Error sending email: %s", e)
+        logger.error("Error sending notification to Slack: %s", e)
