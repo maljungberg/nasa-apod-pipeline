@@ -173,8 +173,12 @@ See `docs/design.md` for implementation details.
 
 ## Frontend Screenshot
 ![Galería APOD](docs/Screenshot_laptop.png)
+Screenshot in laptop
 
-![Galería APOD](docs/Screenshot_mobile.jpeg)
+<p align="center">
+  <img src="docs/Screenshot_mobile.jpeg" width="200">
+</p>
+Screenshot in mobile
 
 ## License
 
