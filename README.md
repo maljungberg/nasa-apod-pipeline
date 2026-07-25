@@ -185,6 +185,18 @@ Screenshot in mobile
 
 https://apod-pipeline.web.app/
 
+## Lessons Learned
+
+Building this project allowed me to:
+
+- Design an idempotent ETL pipeline.
+- Implement historical backfills and incremental loads.
+- Work with Google Cloud's serverless ecosystem.
+- Secure secrets using Secret Manager.
+- Implement automated testing and CI workflows.
+- Deploy a responsive frontend using Firebase Hosting.
+- Design a cost-efficient cloud architecture.
+
 ## License
 
 MIT License

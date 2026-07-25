@@ -22,7 +22,7 @@ The project was intentionally designed to operate entirely within the Google Clo
 - **FR3 – Data Normalization:** Raw API responses are cleaned and normalized before storage.
 - **FR4 – Idempotency:** The natural key `date` (YYYY-MM-DD) guarantees that records are never duplicated. Upsert operations are used throughout the loading process.
 - **FR5 – Remote Access:** Data is made available through a responsive web gallery accessible from any device.
-- **FR6 – Notifications:** Email alerts are sent whenever extraction or processing fails after all retry attempts have been exhausted.
+- **FR6 – Notifications:** Slack alerts are sent whenever extraction or processing fails after all retry attempts have been exhausted.
 - **FR7 – Security:** Secrets are securely stored in Google Cloud Secret Manager and are never committed to version control.
 
 ---
@@ -34,7 +34,7 @@ The project was intentionally designed to operate entirely within the Google Clo
 | Orchestration | Cloud Scheduler + Cloud Run | Fully serverless architecture with scale-to-zero capabilities. |
 | Database | Firestore (Native Mode) | Document-oriented model ideal for APOD metadata and direct frontend integration. |
 | Secrets Management | Secret Manager | Secure storage, auditing, and secret rotation support. |
-| Notifications | SendGrid | Free tier support and easy REST API integration. |
+| Notifications | Slack alerts | Free notifications |
 | Frontend | Firebase Hosting + HTML/JavaScript | Free SSL-enabled static hosting with Firestore SDK integration. |
 | Programming Language | Python 3.10+ | Excellent support for GCP services and JSON processing. |
 
@@ -49,7 +49,7 @@ flowchart TD
     C --> D[Transform and Normalize Data]
     D --> E[Load into Firestore]
     B --> F[Secret Manager]
-    B --> G[SendGrid Notifications]
+    B --> G[Slack failure Notifications]
     B --> H[Cloud Logging]
     E --> I[Firebase Hosting Frontend]
 ```
@@ -158,7 +158,7 @@ The following failure scenarios are considered:
 If all retries fail:
 
 - Errors are logged in Cloud Logging.
-- An email notification is sent through SendGrid.
+- A Slack notification is sent through an incoming webhook.
 - The execution terminates safely.
 
 The pipeline guarantees document-level idempotency and can be re-executed without producing duplicate records.
@@ -220,7 +220,7 @@ The project was intentionally designed to run within Google Cloud's free tier.
 | Firestore | $0 |
 | Firebase Hosting | $0 |
 | Secret Manager | $0 |
-| SendGrid | Free Tier |
+| Slack alert | Free |
 
 **Estimated Monthly Cost: $0 USD**
 
@@ -241,7 +241,6 @@ The project was intentionally designed to run within Google Cloud's free tier.
 
 Potential future enhancements include:
 
-- GitHub Actions-based CI/CD deployments.
 - Additional data validation tests.
 - Monitoring dashboards.
 - Cloud Storage backup strategies.

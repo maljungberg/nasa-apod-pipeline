@@ -1,5 +1,5 @@
 """
-Features: logging, sending error emails.
+Utility functions for pipeline monitoring and Slack failure notifications.
 """
 
 import logging
