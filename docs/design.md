@@ -1,7 +1,7 @@
 # NASA APOD Data Pipeline - Technical Design Document
 
 **Version:** 1.1  
-**Author:** Mauricio Ljungberg
+**Author:** Mauricio Ljungberg   
 **Date:** 2026-06-28  
 **Status:** Approved Design – Production Ready
 
