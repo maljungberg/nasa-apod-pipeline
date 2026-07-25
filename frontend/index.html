@@ -24,7 +24,7 @@
   <h3>Weekly updated through an automated serverless ETL pipeline. </h3>
   <div class="gallery" id="gallery"></div>
   <div id="load-more-container">
-    <button id="load-more-btn">Cargar más</button>
+    <button id="load-more-btn">Load more</button>
   </div>
 
   <div class="modal" id="modal">
@@ -232,10 +232,10 @@
 
     loadMoreBtn.addEventListener("click", async () => {
       loadMoreBtn.disabled = true;
-      loadMoreBtn.textContent = "Cargando...";
+      loadMoreBtn.textContent = "Loading...";
       await loadMore();
       loadMoreBtn.disabled = false;
-      loadMoreBtn.textContent = "Cargar más";
+      loadMoreBtn.textContent = "Load more";
     });
 
     document.getElementById("close-modal").addEventListener("click", closeModal);

@@ -21,7 +21,7 @@ Built entirely on Google Cloud's free tier, this project showcases a production-
                 |-- Transforms and normalizes data
                 |-- Loads data into Firestore (upsert)
                 |-- Updates control document
-                |-- Sends email alerts on failure (SendGrid)
+                |-- Sends Slack alerts on failure
                 v
 [GCP] Firestore (collection `apod`)
                 |
@@ -36,7 +36,7 @@ Built entirely on Google Cloud's free tier, this project showcases a production-
 | Orchestration | Cloud Scheduler + Cloud Run |
 | Database | Firestore (Native Mode) |
 | Secrets Management | Secret Manager |
-| Notifications | SendGrid |
+| Notifications | Slack |
 | Frontend | Firebase Hosting + Firestore SDK |
 | Testing | Pytest |
 | Containers | Docker |
@@ -85,9 +85,6 @@ Copy `.env.example` to `.env` and fill in the required values:
 ```env
 NASA_API_KEY=your-api-key
 GOOGLE_CLOUD_PROJECT=your-gcp-project-id
-SENDGRID_API_KEY=your-sendgrid-key
-TO_EMAIL=your@email.com
-FROM_EMAIL=pipeline@example.com
 ```
 
 ### 3. Run tests locally
@@ -165,7 +162,7 @@ See `docs/design.md` for implementation details.
 ## Monitoring
 
 - Centralized logs through Cloud Logging
-- Email alerts via SendGrid when failures occur (pending final activation)
+- Slack alerts via webhook when failures occur
 - Exponential backoff retry strategy (urllib3 + application layer)
 
 ## Architecture diagram
