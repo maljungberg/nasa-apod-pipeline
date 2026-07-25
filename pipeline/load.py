@@ -65,7 +65,7 @@ def load_records(records: List[Dict[str, Any]]) -> int:
     if count % 500 != 0:
         batch.commit()
 
-    logger.info("Carga completada: %d registros insertados/actualizados en Firestore.", count)
+    logger.info("Upload complete: %d records inserted/updated in Firestore.", count)
     return count
 
 

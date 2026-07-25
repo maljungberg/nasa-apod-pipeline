@@ -72,7 +72,7 @@ nasa-apod-pipeline/
 ### 1. Clone the repository and install dependencies
 
 ```bash
-git clone https://github.com/Mauriljb/nasa-apod-pipeline.git
+git clone https://github.com/maljungberg/nasa-apod-pipeline.git
 cd nasa-apod-pipeline
 python -m venv env && source env/bin/activate
 pip install -r pipeline/requirements.txt
@@ -85,6 +85,7 @@ Copy `.env.example` to `.env` and fill in the required values:
 ```env
 NASA_API_KEY=your-api-key
 GOOGLE_CLOUD_PROJECT=your-gcp-project-id
+SLACK_WEBHOOK_URL=your-webhook-url
 ```
 
 ### 3. Run tests locally
