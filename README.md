@@ -52,7 +52,7 @@ nasa-apod-pipeline/
 │   ├── extract.py                # API calls with retries
 │   ├── transform.py              # Data cleaning and normalization
 │   ├── load.py                   # Firestore loading logic
-│   ├── utils.py                  # Logging and email utilities
+│   ├── utils.py                  # Logging and slack utilities
 │   ├── requirements.txt
 │   └── Dockerfile
 ├── frontend/index.html           # Web gallery (HTML + Vanilla JS)
