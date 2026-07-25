@@ -58,7 +58,7 @@ def load_records(records: List[Dict[str, Any]]) -> int:
         # Firestore accepts up to 500 operations per batch
         if count % 500 == 0:
             batch.commit()
-            logger.info("Commit de batch intermedio (%d documentos).", count)
+            logger.info("Commit of intermediate batch (%d documents).", count)
             batch = db.batch()
 
     # Final commit for the rest
