@@ -1,32 +1,29 @@
-# Entorno virtual de Python
+# Python Virtual Environment
 env/
 venv/
 
-# Variables de entorno (contiene claves reales)
+# Environment variables 
 .env
 
-# Archivos compilados de Python
+# Python compiled files
 __pycache__/
 *.pyc
 *.pyo
 
-# Caché de pytest
+# Pytest cache
 .pytest_cache/
 
-# Archivos de configuración locales de Firebase (caché, no el proyecto)
+# Local Firebase configuration files (cache, not the project)
 .firebase/
 
-# Archivos del sistema
+# System files
 .DS_Store
 Thumbs.db
 
-# Notebooks y scripts temporales de pruebas
+# Notebooks and temporary scripts for testing
 Untitled.ipynb
 script.py
 apod.json
 
-# Docker (si se generan imágenes locales, etc.)
-# (no necesario con Cloud Build)
-
-# Otros
+#Others
 *.log

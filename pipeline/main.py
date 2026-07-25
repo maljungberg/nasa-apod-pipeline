@@ -71,7 +71,7 @@ def run_incremental():
         return
 
     today = datetime.now(timezone.utc).date()
-    start_date = last_date  # inclusive, solapamiento
+    start_date = last_date  # inclusive, overlap
     end_date = (today - timedelta(days=1)).isoformat()  # until yesterday inclusive
 
     logger.info("Incremental: %s -> %s", start_date, end_date)
